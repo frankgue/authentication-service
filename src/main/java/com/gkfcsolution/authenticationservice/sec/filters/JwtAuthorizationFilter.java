@@ -1,9 +1,9 @@
 package com.gkfcsolution.authenticationservice.sec.filters;
 
-import com.gkfcsolution.authenticationservice.sec.service.CustomUserDetailsService;
+import com.gkfcsolution.authenticationservice.sec.jwtUtilities.JWTUtil;
+import com.gkfcsolution.authenticationservice.sec.service.impl.CustomUserDetailsServiceImpl;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -38,25 +38,25 @@ import java.util.Date;
 @RequiredArgsConstructor
 public class JwtAuthorizationFilter extends OncePerRequestFilter {
 
-    private final CustomUserDetailsService userDetailsService;
-
-    // 🔐 Clé secrète JWT (à externaliser dans application.yml pour la production)
-
-    //    @Value("${jwt.secret-key}")
-//    private String SECRET_KEY;
-    private final String SECRET_KEY = "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF";
-//    private final String SECRET_KEY = "my-super-secret-key-should-be-long-and-secure-512bits";
+    private final CustomUserDetailsServiceImpl userDetailsService;
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        String authHeader = request.getHeader("Authorization");
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        if (request.getServletPath().equals("/refreshToken")){
             filterChain.doFilter(request, response);
             return;
         }
 
-        String token = authHeader.substring(7);
-        String username = extractUsername(token);
+        String authHeader = request.getHeader(JWTUtil.AUTH_HEADER);
+
+
+        if (authHeader == null || !authHeader.startsWith(JWTUtil.BEARER_AUTH_HEADER_PREFIX)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        String token = authHeader.substring(JWTUtil.BEARER_AUTH_HEADER_PREFIX.length());
+        String username = JWTUtil.extractUsername(token);
         log.info("Authorization header: {}", authHeader);
         log.info("Username from token: {}", username);
         // 🔎 Si utilisateur trouvé et non déjà authentifié
@@ -64,7 +64,7 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter {
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null){
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
-            if (validateToken(token, userDetails)){
+            if (JWTUtil.validateToken(token, userDetails)){
                 UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
                         userDetails,
                         null,
@@ -76,38 +76,6 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request,response);
-    }
-
-    // 🧠 Extraction du username à partir du token
-    private String extractUsername(String token){
-        try {
-            Claims claims = extractAllClaims(token);
-            return claims.getSubject();
-        } catch (Exception e){
-            log.error("Invalid JWT: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    // ⚙️ Lecture et parsing du JWT
-    private Claims extractAllClaims(String token){
-        Key key = Keys.hmacShaKeyFor(SECRET_KEY.getBytes(StandardCharsets.UTF_8));
-        return Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
-    }
-
-    // ✅ Validation du token
-    private boolean validateToken(String token, UserDetails userDetails){
-        String username = extractUsername(token);
-        return username != null && username.equals(userDetails.getUsername()) && !isTokenExpired(token);
-    }
-
-    private boolean isTokenExpired(String token){
-        Claims claims = extractAllClaims(token);
-        return claims.getExpiration().before(new Date());
     }
 
 }

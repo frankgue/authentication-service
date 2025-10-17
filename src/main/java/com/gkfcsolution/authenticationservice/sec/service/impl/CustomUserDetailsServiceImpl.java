@@ -1,4 +1,4 @@
-package com.gkfcsolution.authenticationservice.sec.service;
+package com.gkfcsolution.authenticationservice.sec.service.impl;
 
 import com.gkfcsolution.authenticationservice.sec.entities.AppUser;
 import com.gkfcsolution.authenticationservice.sec.repository.AppUserRepository;
@@ -18,16 +18,16 @@ import org.springframework.stereotype.Service;
  * @time 16:51
  */
 @Service
-public class CustomUserDetailsService implements UserDetailsService {
+public class CustomUserDetailsServiceImpl implements UserDetailsService {
     @Autowired
     private AppUserRepository userRepository;
-
+//    private final AccountService accountService;
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         AppUser user = userRepository.findByUsername(username);
-        CustomUserDetails userDetails = null;
+        CustomUserDetailsImpl userDetails = null;
         if (user != null) {
-            userDetails = new CustomUserDetails();
+            userDetails = new CustomUserDetailsImpl();
             System.out.println("User => " + user.toString());
             userDetails.setUser(user);
             System.out.println("userDetails => " + userDetails.toString());

@@ -2,7 +2,8 @@ package com.gkfcsolution.authenticationservice.sec.filters;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gkfcsolution.authenticationservice.sec.entities.dto.LoginRequest;
-import com.gkfcsolution.authenticationservice.sec.service.CustomUserDetails;
+import com.gkfcsolution.authenticationservice.sec.jwtUtilities.JWTUtil;
+import com.gkfcsolution.authenticationservice.sec.service.impl.CustomUserDetailsImpl;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
@@ -11,14 +12,11 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import lombok.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -48,12 +46,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilter {
 
-    // 🔐 Clé secrète JWT (à externaliser dans application.yml pour la production)
-
-    //    @Value("${jwt.secret-key}")
-//    private String SECRET_KEY;
-    private final String SECRET_KEY = "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF";
-    //    private final String SECRET_KEY = "my-super-secret-key-should-be-long-and-secure-512bits";
     private final AuthenticationManager authenticationManager;
 
     @Override
@@ -92,32 +84,28 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
             HttpServletResponse response,
             FilterChain chain,
             Authentication authResult) throws IOException, ServletException {
-        CustomUserDetails user = (CustomUserDetails) authResult.getPrincipal();
-        Key algorithKey = Keys.hmacShaKeyFor(SECRET_KEY.getBytes(StandardCharsets.UTF_8));
+        CustomUserDetailsImpl user = (CustomUserDetailsImpl) authResult.getPrincipal();
+        Key algorithKey = Keys.hmacShaKeyFor(JWTUtil.SECRET_KEY.getBytes(StandardCharsets.UTF_8));
         SignatureAlgorithm signatureAlgorithm = SignatureAlgorithm.HS256;
-        int accessTokenExpire = 5 * 60 * 1000; // 1 min
-//        int accessTokenExpire = 10 * 60 * 60 * 1000; // 10h
-        int refreshsTokenExpire = 15 * 60 * 1000; // 1 min
-//        int refreshsTokenExpire = 10 * 60 * 60 * 1000; // 10h
+
         // Génération du token JWT
         String token = Jwts.builder()
                 .setSubject(user.getUsername())
                 .setIssuedAt(new Date())
                 .claim("roles", user.getAuthorities().stream().map(grantedAuthority -> grantedAuthority.getAuthority()).collect(Collectors.toList()))
-                .setExpiration(new Date(System.currentTimeMillis() + accessTokenExpire)) // 1 min
-//                .setExpiration(new Date(System.currentTimeMillis() + 10 * 60 * 60 * 1000)) // 10h
+                .setExpiration(new Date(System.currentTimeMillis() + JWTUtil.ACCESS_TOKEN_EXPIRED_TIME_MS)) // 1 min
                 .signWith(algorithKey, signatureAlgorithm)
                 .compact();
+
         // Génération du refres token JWT
         String refreshToken = Jwts.builder()
                 .setSubject(user.getUsername())
                 .setIssuedAt(new Date())
 //                .claim("roles", user.getAuthorities().stream().map(grantedAuthority -> grantedAuthority.getAuthority()).collect(Collectors.toList()))
-                .setExpiration(new Date(System.currentTimeMillis() + refreshsTokenExpire)) // 15 min
-//                .setExpiration(new Date(System.currentTimeMillis() + 10 * 60 * 60 * 1000)) // 10h
-                .signWith(Keys.hmacShaKeyFor(SECRET_KEY.getBytes(StandardCharsets.UTF_8)), SignatureAlgorithm.HS256)
+                .setExpiration(new Date(System.currentTimeMillis() + JWTUtil.REFRESH_TOKEN_EXPIRED_TIME_MS)) // 15 min
+                .signWith(Keys.hmacShaKeyFor(JWTUtil.SECRET_KEY.getBytes(StandardCharsets.UTF_8)), SignatureAlgorithm.HS256)
                 .compact();
-        response.setHeader("Authorization", token);
+        response.setHeader(JWTUtil.AUTH_HEADER, token);
         System.out.println("successfulAuthentication");
 
 
@@ -126,8 +114,8 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
         responseBody.put("username", user.getUsername());
         responseBody.put("access-token", token);
         responseBody.put("refresh-token", refreshToken);
-        responseBody.put("access-expiresIn", accessTokenExpire);
-        responseBody.put("refresh-token-expiresIn", refreshsTokenExpire);
+        responseBody.put("access-expiresIn", JWTUtil.ACCESS_TOKEN_EXPIRED_TIME_MS);
+        responseBody.put("refresh-token-expiresIn", JWTUtil.REFRESH_TOKEN_EXPIRED_TIME_MS);
         response.setContentType("application/json");
         new ObjectMapper().writeValue(response.getOutputStream(), responseBody);
 

@@ -1,4 +1,4 @@
-package com.gkfcsolution.authenticationservice.sec.service;
+package com.gkfcsolution.authenticationservice.sec.service.impl;
 
 import com.gkfcsolution.authenticationservice.sec.entities.AppUser;
 import lombok.Data;
@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
  * @time 16:58
  */
 @Data
-public class CustomUserDetails implements UserDetails {
+public class CustomUserDetailsImpl implements UserDetails {
 
     private AppUser user;
 
