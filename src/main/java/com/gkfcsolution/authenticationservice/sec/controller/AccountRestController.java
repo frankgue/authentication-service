@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.rmi.RemoteException;
 import java.security.Key;
+import java.security.Principal;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -121,5 +122,9 @@ public class AccountRestController {
 
     }
 
+    @GetMapping("/profile")
+    public AppUser profile(Principal principal){
+        return accountService.loadUserByUsername(principal.getName());
+    }
 
 }
