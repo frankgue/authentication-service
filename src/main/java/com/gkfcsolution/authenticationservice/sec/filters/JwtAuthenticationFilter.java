@@ -53,8 +53,9 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
     //    @Value("${jwt.secret-key}")
 //    private String SECRET_KEY;
     private final String SECRET_KEY = "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF";
-//    private final String SECRET_KEY = "my-super-secret-key-should-be-long-and-secure-512bits";
+    //    private final String SECRET_KEY = "my-super-secret-key-should-be-long-and-secure-512bits";
     private final AuthenticationManager authenticationManager;
+
     @Override
     public Authentication attemptAuthentication(
             HttpServletRequest request,
@@ -79,7 +80,7 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 
             return authenticationManager.authenticate(authenticationToken);
 
-        } catch (IOException e){
+        } catch (IOException e) {
 
             throw new RuntimeException("Erreur lors de la lecture des identifiants", e);
         }
@@ -93,14 +94,18 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
             Authentication authResult) throws IOException, ServletException {
         CustomUserDetails user = (CustomUserDetails) authResult.getPrincipal();
         Key algorithKey = Keys.hmacShaKeyFor(SECRET_KEY.getBytes(StandardCharsets.UTF_8));
-        SignatureAlgorithm signatureAlgorithm =  SignatureAlgorithm.HS256;
+        SignatureAlgorithm signatureAlgorithm = SignatureAlgorithm.HS256;
+        int accessTokenExpire = 5 * 60 * 1000; // 1 min
+//        int accessTokenExpire = 10 * 60 * 60 * 1000; // 10h
+        int refreshsTokenExpire = 15 * 60 * 1000; // 1 min
+//        int refreshsTokenExpire = 10 * 60 * 60 * 1000; // 10h
         // Génération du token JWT
         String token = Jwts.builder()
                 .setSubject(user.getUsername())
                 .setIssuedAt(new Date())
                 .claim("roles", user.getAuthorities().stream().map(grantedAuthority -> grantedAuthority.getAuthority()).collect(Collectors.toList()))
-                .setExpiration(new Date(System.currentTimeMillis() + 60 * 60 * 10)) // 10h
-//                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 10)) // 10h
+                .setExpiration(new Date(System.currentTimeMillis() + accessTokenExpire)) // 1 min
+//                .setExpiration(new Date(System.currentTimeMillis() + 10 * 60 * 60 * 1000)) // 10h
                 .signWith(algorithKey, signatureAlgorithm)
                 .compact();
         // Génération du refres token JWT
@@ -108,8 +113,8 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
                 .setSubject(user.getUsername())
                 .setIssuedAt(new Date())
 //                .claim("roles", user.getAuthorities().stream().map(grantedAuthority -> grantedAuthority.getAuthority()).collect(Collectors.toList()))
-                .setExpiration(new Date(System.currentTimeMillis() + 90 * 60 * 10))
-//                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 10)) // 10h
+                .setExpiration(new Date(System.currentTimeMillis() + refreshsTokenExpire)) // 15 min
+//                .setExpiration(new Date(System.currentTimeMillis() + 10 * 60 * 60 * 1000)) // 10h
                 .signWith(Keys.hmacShaKeyFor(SECRET_KEY.getBytes(StandardCharsets.UTF_8)), SignatureAlgorithm.HS256)
                 .compact();
         response.setHeader("Authorization", token);
@@ -121,7 +126,8 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
         responseBody.put("username", user.getUsername());
         responseBody.put("access-token", token);
         responseBody.put("refresh-token", refreshToken);
-        responseBody.put("expiresIn", 36000);
+        responseBody.put("access-expiresIn", accessTokenExpire);
+        responseBody.put("refresh-token-expiresIn", refreshsTokenExpire);
         response.setContentType("application/json");
         new ObjectMapper().writeValue(response.getOutputStream(), responseBody);
 
